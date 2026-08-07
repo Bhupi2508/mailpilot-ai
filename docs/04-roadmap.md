@@ -5,46 +5,58 @@
 
 ---
 
-## Phase 1 — Core (Current)
+## Phase 1 — OAuth Foundation (Current)
 
-Foundation for the whole app.
+- ✅ OAuth-only authentication (no passwords)
+- ✅ Sign in with Google (Authorization Code flow)
+- ✅ Connect Gmail account, send via Gmail API
+- ✅ Encrypted OAuth token storage + automatic refresh
+- ✅ Provider-based OAuth + email provider architecture
+- ✅ Shared email send (`POST /emails/send`)
+- ✅ Individual email send (`POST /emails/send-individual`)
+- ✅ Temporary attachments (deleted after send; metadata only)
+- ✅ Email history
+- ✅ Swagger docs (`/api/docs`)
+- ✅ Free-tier deployment ready (Neon + Railway)
 
-- Compose Email
-- Multiple Recipients
-- Attachments (up to 5)
-- Send Email
-- Basic History
+## Phase 2 — More Providers
 
-## Phase 2 — Productivity
+- [ ] Outlook
+- [ ] Microsoft 365
+- [ ] Zoho
+- [ ] Yahoo
+
+> Each is a new OAuth adapter + email provider class. No architectural changes.
+
+## Phase 3 — Productivity
 
 - Templates
-- Google OAuth login
 - Better UI
 - Search
 - Drafts
+- Re-send failed emails
 
-## Phase 3 — Delivery & Analytics
+## Phase 4 — AI Features
+
+- AI Email Generation
+- AI Reply Suggestions
+- AI Subject Generator
+- Grammar Improvement
+- Follow-up Suggestions
+
+## Phase 5 — Delivery & Analytics
 
 - Scheduling
 - Analytics
 - Delivery Status
 - Retry Failed Emails
 
-## Phase 4 — AI Features
+## Phase 6 — Enterprise
 
-- AI Email Generation
-- AI Subject Generator
-- Grammar Improvement
-- Follow-up Suggestions
-
-## Phase 5 — Enterprise
-
-- Outlook Integration
-- AWS SES
-- SendGrid
 - Teams
 - Organizations
 - Roles & Permissions
+- SendGrid / Mailgun / AWS SES providers
 
 ---
 
@@ -52,16 +64,12 @@ Foundation for the whole app.
 
 ```mermaid
 flowchart LR
-    P1[Phase 1] --> P2[Phase 2]
-    P2 --> P3[Phase 3]
-    P3 --> P4[Phase 4]
-    P2 --> P5[Phase 5]
+    P1[Phase 1 - OAuth Foundation] --> P2[Phase 2 - Providers]
+    P1 --> P3[Phase 3 - Productivity]
+    P1 --> P4[Phase 4 - AI]
+    P2 --> P5[Phase 5 - Analytics]
+    P3 --> P6[Phase 6 - Enterprise]
 ```
-
-- Phase 2 needs the Phase 1 composer and history.
-- Phase 3 needs Phase 2 delivery + better UI.
-- Phase 4 adds AI on top of a working compose + history.
-- Phase 5 adds enterprise features and integrations.
 
 ---
 

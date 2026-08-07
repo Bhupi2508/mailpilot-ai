@@ -1,29 +1,34 @@
 # MailPilot AI — Project Overview
 
-> **Status:** Initial development phase (Phase 1)
-> **Tech:** React (JavaScript) + Vite + Python + FastAPI
+> **Status:** Current
+> **Tech:** React (JavaScript) + Vite + Express.js + PostgreSQL + Google OAuth
 
 ---
 
 ## Vision
 
-An app that lets you **send a personalized email to many people** — without anyone seeing the other recipients.
+MailPilot AI is **an email sending platform — NOT an email provider**.
+
+Users **connect their own email account** (Google first, Outlook later) and
+send emails **through their own mailbox** using the Gmail API — so no SMTP
+credentials or App Passwords are ever required.
 
 ## Problem
 
-Today, sending the same email to many people means:
+Sending the same email to many people traditionally means:
 
-- **To** — everyone sees each other's email.
-- **CC** — everyone sees each other's email.
-- **BCC** — hides emails, but still looks like a bulk send and is not ideal for professional outreach (e.g., recruiter emails).
+- **To / CC** — everyone sees each other's email addresses.
+- **BCC** — hides addresses, but still looks like a bulk email and is poor for
+  professional outreach (e.g. recruiter emails).
 
 ## Solution
 
-MailPilot AI lets you **write one email once** and sends an **individual email to every recipient** automatically.
+MailPilot AI lets you **write one email once** and send it to many recipients
+in two modes:
 
-- Each recipient gets a separate email.
-- No recipient ever sees the others.
-- Looks personal, not bulk.
+- **Shared** — one email to all recipients (To/CC/BCC visible to all).
+- **Individual** — a separate private email to every recipient; no recipient
+  ever sees the others.
 
 ## Target Users
 
@@ -34,43 +39,41 @@ MailPilot AI lets you **write one email once** and sends an **individual email t
 - Consultants
 - Small businesses
 
-## Core Features (Phase 1)
+## Core Features (Current)
 
-- Compose a single email
-- Add multiple recipients (comma, newline, or pipe separated)
-- Subject line
-- Email body
-- Up to 5 attachments (PDF, DOC/DOCX, CSV)
-- Send button
-- Backend sends one email per recipient
-- Success / failure status per email
+- **Sign in with Google** (OAuth 2.0) — the only auth flow. No passwords.
+- **Connect a Gmail account** and send through the **Gmail API** using the
+  user's own mailbox.
+- **Provider-based architecture** — adding Outlook, Microsoft 365, Zoho, Yahoo
+  later requires only a new adapter.
+- **Automatic token refresh** — expired access tokens are refreshed using the
+  stored refresh token (encrypted at rest).
+- **Frontend receives only the MailPilot JWT** — provider tokens never leave
+  the server.
+- **Two send modes**: shared email and individual private emails.
+- **Attachments are temporary** — uploaded files are deleted immediately after
+  sending; only metadata (count + names) is stored.
+- **Email history** with recipient arrays and status.
 
 ## Future Features
 
-- Templates
-- Google OAuth login
-- Search & drafts
-- Scheduling
+- Outlook, Microsoft 365, Zoho, Yahoo providers
 - AI email generation
+- AI reply suggestions
+- AI subject generation
+- Email templates
+- Scheduling
 - Analytics & delivery tracking
-- Outlook, AWS SES, SendGrid support
-- Teams & organizations
-
-## Possible Business Model
-
-- **Free Plan** — limited emails per month
-- **Pro Plan** — more emails + extra features
-- **Team Plan** — for small teams
-- **Enterprise Plan** — large organizations
-- **AI Credits** — pay for AI features
-- **Monthly Subscription** — recurring billing
+- Search & drafts
 
 ## Why Use This App?
 
-- Saves time — write once, send individually to many.
-- Looks personal — each recipient gets their own email.
-- Protects privacy — recipients never see each other.
-- Better than BCC for professional outreach.
+- **No password to manage** — sign in with your Google account.
+- **Your own mailbox** — emails are sent from the user's own account.
+- **Looks personal** — each recipient gets their own email.
+- **Protects privacy** — recipients never see each other.
+- **Better than BCC** for professional outreach.
+- **Low infrastructure cost** — free-tier friendly (Neon PostgreSQL + Railway).
 
 ---
 
