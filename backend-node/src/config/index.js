@@ -110,7 +110,7 @@ const config = {
     maxSizeMb: parseInt(process.env.UPLOAD_MAX_SIZE_MB, 10) || 10,
     maxFiles: parseInt(process.env.UPLOAD_MAX_FILES, 10) || 5,
     allowedExtensions: (
-      process.env.ALLOWED_EXTENSIONS || ".pdf,.doc,.docx,.csv"
+      process.env.ALLOWED_EXTENSIONS || ".pdf,.doc,.docx,.csv,.txt"
     )
       .split(",")
       .map((e) => e.trim().toLowerCase()),
@@ -118,7 +118,7 @@ const config = {
       process.env.ALLOWED_MIME_TYPES ||
       "application/pdf,application/msword," +
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
-        "text/csv"
+        "text/csv,text/plain"
     )
       .split(",")
       .map((m) => m.trim().toLowerCase()),

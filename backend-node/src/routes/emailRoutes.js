@@ -32,6 +32,24 @@ router.post(
   emailController.sendIndividual
 );
 
+// Spec-compliant aliases. "Separate" = individual email per recipient;
+// "Consolidated" = one shared email to all recipients.
+router.post(
+  "/separate",
+  validateContentType,
+  parseAttachments,
+  validate(sendEmailValidator),
+  emailController.sendIndividual
+);
+
+router.post(
+  "/consolidated",
+  validateContentType,
+  parseAttachments,
+  validate(sendEmailValidator),
+  emailController.sendEmail
+);
+
 router.get(
   "/history",
   validate(historyQueryValidator),

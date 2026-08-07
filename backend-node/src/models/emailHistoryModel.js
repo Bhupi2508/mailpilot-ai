@@ -57,32 +57,101 @@ const emailHistoryModel = {
   },
 
   /**
-   * Returns all emails for a user, newest first.
+   * Builds the WHERE clause + params for filtering a user's history.
+   * Supports optional subject search and status/mode filters.
    */
-  async findAllByUser(userId, { limit = 20, offset = 0 } = {}) {
+  _buildFilter(userId, { search, status, mode } = {}) {
+    const conditions = ["user_id = $1"];
+    const params = [userId];
+    let paramIndex = 1;
+
+    if (search) {
+      paramIndex += 1;
+      conditions.push(`subject ILIKE $${paramIndex}`);
+      params.push(`%${search}%`);
+    }
+
+    if (status) {
+      paramIndex += 1;
+      conditions.push(`status = $${paramIndex}`);
+      params.push(status);
+    }
+
+    if (mode) {
+      paramIndex += 1;
+      conditions.push(`sending_mode = $${paramIndex}`);
+      params.push(mode);
+    }
+
+    return { where: conditions.join(" AND "), params };
+  },
+
+  /**
+   * Returns all emails for a user, newest first, with optional filters.
+   * @param {object} opts
+   * @param {number} [opts.limit=20]
+   * @param {number} [opts.offset=0]
+   * @param {string} [opts.search] - Subject substring search.
+   * @param {string} [opts.status] - 'sent' | 'failed' | 'pending'.
+   * @param {string} [opts.mode] - 'shared' | 'individual'.
+   */
+  async findAllByUser(
+    userId,
+    { limit = 20, offset = 0, search, status, mode } = {}
+  ) {
+    const { where, params } = this._buildFilter(userId, {
+      search,
+      status,
+      mode,
+    });
+    const orderIdx = params.length;
+
     const { rows } = await pool.query(
       `SELECT id, user_id, provider, provider_message_id, subject, body,
               body_type, to_recipients, cc_recipients, bcc_recipients,
               sending_mode, attachment_count, attachment_names, status,
               error_message, sent_at, created_at, updated_at
        FROM email_history
-       WHERE user_id = $1
+       WHERE ${where}
        ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+       LIMIT $${orderIdx + 1} OFFSET $${orderIdx + 2}`,
+      [...params, limit, offset]
     );
     return rows;
   },
 
   /**
-   * Counts all emails for a user.
+   * Counts all emails for a user, honoring the same filters.
    */
-  async countByUser(userId) {
+  async countByUser(userId, filters = {}) {
+    const { where, params } = this._buildFilter(userId, filters);
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS total FROM email_history WHERE user_id = $1`,
-      [userId]
+      `SELECT COUNT(*)::int AS total FROM email_history WHERE ${where}`,
+      params
     );
     return rows[0].total;
+  },
+
+  /**
+   * Computes aggregate dashboard statistics for a user.
+   * @returns {Promise<object>}
+   */
+  async getStats(userId) {
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE status = 'sent')::int AS success,
+         COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+         COUNT(*) FILTER (WHERE sending_mode = 'individual')::int AS separate,
+         COUNT(*) FILTER (WHERE sending_mode = 'shared')::int AS consolidated,
+         COUNT(*) FILTER (
+           WHERE created_at::date = CURRENT_DATE
+         )::int AS today
+       FROM email_history
+       WHERE user_id = $1`,
+      [userId]
+    );
+    return rows[0];
   },
 };
 

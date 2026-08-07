@@ -21,8 +21,6 @@ const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 
-console.log(`Starting MailPilot AI API in ${config.env} mode...`);
-
 // Trust proxy so req.ip is correct behind a reverse proxy (needed for rate limiting).
 app.set("trust proxy", 1);
 
@@ -36,7 +34,6 @@ app.use(
     credentials: true,
   })
 );
-console.log(`CORS configured for origin(s): ${config.corsOrigin}`);
 
 // --- Request logging ---
 app.use(
@@ -48,8 +45,6 @@ app.use(
 // --- Body parsing ---
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-
-console.log(`Request body size limit set to 2MB`);
 
 // --- Input sanitization ---
 app.use("/api", sanitizeBody);

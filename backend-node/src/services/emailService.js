@@ -174,11 +174,13 @@ class EmailService {
         options: resolved.options,
       });
     } catch (err) {
+      console.error(`[email] send failed: ${err.message}`, err);
       logger.error(
         `[email] send failed via ${
           resolvedProvider ? resolvedProvider.name : "?"
         }: ${err.message}`
       );
+
       const record = await this.persist({
         user,
         sendingMode,
@@ -295,11 +297,12 @@ class EmailService {
   /**
    * Returns paginated email history for a user.
    */
-  async getHistory(user, { page = 1, limit = 20 }) {
+  async getHistory(user, { page = 1, limit = 20, search, status, mode } = {}) {
     const offset = (page - 1) * limit;
+    const filters = { search, status, mode };
     const [emails, total] = await Promise.all([
-      emailHistoryModel.findAllByUser(user.id, { limit, offset }),
-      emailHistoryModel.countByUser(user.id),
+      emailHistoryModel.findAllByUser(user.id, { limit, offset, ...filters }),
+      emailHistoryModel.countByUser(user.id, filters),
     ]);
 
     return {

@@ -16,6 +16,7 @@ const sendEmail = asyncHandler(async (req, res) => {
     provider = "auto",
     account_id,
   } = req.body;
+
   const files = req.files || [];
 
   const result = await emailService.send({
@@ -66,8 +67,17 @@ const sendIndividual = asyncHandler(async (req, res) => {
 const getHistory = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 20;
+  const search = req.query.search?.trim() || undefined;
+  const status = req.query.status?.trim() || undefined;
+  const mode = req.query.mode?.trim() || undefined;
 
-  const history = await emailService.getHistory(req.user, { page, limit });
+  const history = await emailService.getHistory(req.user, {
+    page,
+    limit,
+    search,
+    status,
+    mode,
+  });
 
   new ApiResponse(200, history, "Email history retrieved successfully.").send(
     res

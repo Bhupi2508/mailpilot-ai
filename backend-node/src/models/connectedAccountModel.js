@@ -33,7 +33,7 @@ const connectedAccountModel = {
         accessToken,
         refreshToken || null,
         tokenExpiry || null,
-        scopes && scopes.length ? JSON.stringify(scopes) : null,
+        scopes && scopes.length ? scopes : null,
       ]
     );
     return rows[0];
@@ -109,7 +109,7 @@ const connectedAccountModel = {
         accessToken,
         refreshToken,
         tokenExpiry || null,
-        scopes && scopes.length ? JSON.stringify(scopes) : undefined,
+        scopes && scopes.length ? scopes : undefined,
       ]
     );
     return rows[0] || null;

@@ -128,6 +128,7 @@ ALTER TABLE email_history ADD COLUMN IF NOT EXISTS attachment_count INTEGER
 ALTER TABLE email_history ADD COLUMN IF NOT EXISTS attachment_names TEXT[]
   NOT NULL DEFAULT '{}';
 ALTER TABLE email_history ADD COLUMN IF NOT EXISTS error_message TEXT;
+ALTER TABLE email_history ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
 
 ALTER TABLE email_history ALTER COLUMN subject TYPE VARCHAR(200);
 ALTER TABLE email_history ALTER COLUMN status TYPE VARCHAR(20)

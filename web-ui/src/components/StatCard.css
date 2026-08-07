@@ -1,0 +1,75 @@
+.mp-statcard {
+  background: #ffffff;
+  border: 1px solid #e4e7f0;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 2px rgba(16, 19, 28, 0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mp-statcard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(16, 19, 28, 0.08);
+}
+
+.mp-statcard__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mp-statcard__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mp-statcard--sky .mp-statcard__icon {
+  background: rgba(45, 108, 255, 0.12);
+  color: #2d6cff;
+}
+
+.mp-statcard--violet .mp-statcard__icon {
+  background: rgba(109, 76, 255, 0.12);
+  color: #6d4cff;
+}
+
+.mp-statcard--beacon .mp-statcard__icon {
+  background: rgba(245, 166, 35, 0.16);
+  color: #c77f0a;
+}
+
+.mp-statcard--success .mp-statcard__icon {
+  background: rgba(31, 174, 110, 0.14);
+  color: #1fae6e;
+}
+
+.mp-statcard--danger .mp-statcard__icon {
+  background: rgba(229, 72, 77, 0.12);
+  color: #e5484d;
+}
+
+.mp-statcard__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.mp-statcard__value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 26px;
+  font-weight: 600;
+  color: #10131c;
+  line-height: 1.1;
+}
+
+.mp-statcard__label {
+  font-size: 12.5px;
+  color: #565f78;
+  margin-top: 4px;
+}

@@ -91,6 +91,21 @@ const historyQueryValidator = [
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage("Limit must be an integer between 1 and 100."),
+  query("search")
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage("Search term must be at most 200 characters."),
+  query("status")
+    .optional()
+    .trim()
+    .isIn(["sent", "failed", "pending"])
+    .withMessage("status must be one of: sent, failed, pending."),
+  query("mode")
+    .optional()
+    .trim()
+    .isIn(["shared", "individual"])
+    .withMessage("mode must be one of: shared, individual."),
 ];
 
 module.exports = {
