@@ -1,42 +1,28 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import "./Modal.css";
 
-/**
- * Accessible confirmation/modal dialog.
- * Renders a backdrop + content and locks body scroll while open.
- */
-function Modal({ open, title, children, onClose, footer }) {
+/** Accessible dialog: Escape/backdrop closes, body scroll is locked while open. */
+function Modal({ open, title, children, onClose, footer, size = "md" }) {
+  const titleId = useId();
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
+    const onKey = (e) => e.key === "Escape" && onClose?.();
     document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prev;
     };
   }, [open, onClose]);
 
   if (!open) return null;
-
   return (
-    <div className="mp-modal__backdrop" onClick={onClose}>
-      <div
-        className="mp-modal"
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="mp-modal__backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+      <div className={`mp-modal mp-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="mp-modal__head">
-          <h3>{title}</h3>
-          <button
-            type="button"
-            className="mp-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>

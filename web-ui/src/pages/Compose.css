@@ -1,0 +1,89 @@
+.mp-compose__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+}
+.mp-compose__form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mp-compose__link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand);
+  cursor: pointer;
+  margin-top: -8px;
+}
+.mp-compose__copies {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.mp-compose__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.mp-compose__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 84px;
+}
+.mp-steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.mp-steps strong {
+  color: var(--ink);
+}
+.mp-compose__demo p {
+  margin-top: 8px;
+  line-height: 1.9;
+}
+
+@media (max-width: 900px) {
+  .mp-compose__grid {
+    grid-template-columns: 1fr;
+  }
+  .mp-compose__aside {
+    position: static;
+    order: -1;
+  }
+  .mp-compose__aside .card:first-child {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .mp-compose__form {
+    padding: 16px;
+  }
+  .mp-compose__actions .btn {
+    width: 100%;
+  }
+  .mp-compose__actions .faint {
+    width: 100%;
+    text-align: center;
+  }
+}

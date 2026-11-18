@@ -1,84 +1,42 @@
 /**
- * API client utilities.
- *
- * Provides an `authFetch` wrapper that injects the MailPilot JWT from
- * sessionStorage and normalizes errors into a consistent Error object.
+ * API client. Authentication uses an HttpOnly session cookie set by the
+ * server, so no tokens or credentials are ever stored in browser storage.
+ * Every request sends the X-MailPilot-Client header (CSRF protection).
  */
-export const API_PREFIX = import.meta.env.VITE_API_PREFIX || "/api";
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
 
-/** Returns the stored JWT or null. */
-export function getToken() {
-  return sessionStorage.getItem("jwt");
+export class ApiError extends Error {
+  constructor(status, message, code, details) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details || [];
+  }
 }
 
-/** Returns the stored user object or null (wrapped for safety). */
-export function getStoredUser() {
+export async function api(path, { method = "GET", body, headers = {}, signal } = {}) {
+  const h = { "X-MailPilot-Client": "web", ...headers };
+  let payload = body;
+  if (body !== undefined && !(body instanceof FormData)) {
+    h["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
+  let res;
   try {
-    return JSON.parse(sessionStorage.getItem("mailpilot_user") || "null");
-  } catch {
-    return null;
+    res = await fetch(`${API_BASE}${path}`, { method, headers: h, body: payload, credentials: "include", signal });
+  } catch (err) {
+    if (err.name === "AbortError") throw err;
+    throw new ApiError(0, `Can't reach the MailPilot API (${API_BASE}). Check that the backend is running.`, "network");
   }
-}
-
-/** Persists the session (token + user). */
-export function setSession({ token, user }) {
-  if (token) sessionStorage.setItem("jwt", token);
-  if (user) sessionStorage.setItem("mailpilot_user", JSON.stringify(user));
-}
-
-/** Clears the current session and optionally reloads. */
-export function clearSession() {
-  sessionStorage.removeItem("jwt");
-  sessionStorage.removeItem("mailpilot_user");
-  sessionStorage.removeItem("oauth_state");
-}
-
-/**
- * Auth-aware fetch wrapper.
- *
- * @param {string} path - API path beginning with `/api` or route path.
- * @param {object} [options] - fetch options.
- * @returns {Promise<any>} Resolves with `response.data`.
- */
-export async function authFetch(path, options = {}) {
-  const token = getToken();
-  const headers = { ...(options.headers || {}) };
-
-  // Only set Content-Type for JSON bodies; FormData is set automatically.
-  if (
-    options.body &&
-    !(options.body instanceof FormData) &&
-    typeof options.body === "string"
-  ) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_PREFIX}${path}`, { ...options, headers });
-
-  let payload = null;
-  try {
-    payload = await res.json();
-  } catch {
-    // non-JSON response
-  }
-
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const message =
-      payload?.message || `Request failed with status ${res.status}`;
-    const error = new Error(message);
-    error.status = res.status;
-    error.details = payload?.details || null;
-    throw error;
+    const e = data?.error || {};
+    const err = new ApiError(res.status, e.message || `Request failed (${res.status}).`, e.code, e.details);
+    if (res.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event("mailpilot:unauthorized"));
+    throw err;
   }
-
-  return payload?.data ?? payload;
+  return data;
 }
 
-/** Sends a FormData (multipart) request with auth + CSRF-free. */
-export async function sendForm(path, formData) {
-  return authFetch(path, { method: "POST", body: formData });
-}
+export const googleSignInUrl = `${API_BASE}/auth/google/start`;

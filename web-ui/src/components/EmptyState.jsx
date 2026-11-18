@@ -1,10 +1,8 @@
-import "./EmptyState.css";
-
-/** Empty/error state placeholder with an icon, title, and optional action. */
+/** Empty/error placeholder with an icon, title, message and optional action. */
 function EmptyState({ icon = "📭", title, message, action }) {
   return (
-    <div className="mp-empty">
-      <div className="mp-empty__icon" aria-hidden="true">
+    <div className="empty">
+      <div className="empty__icon" aria-hidden="true">
         {icon}
       </div>
       <h3>{title}</h3>

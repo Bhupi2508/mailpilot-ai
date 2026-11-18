@@ -1,332 +1,157 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authFetch, getStoredUser, clearSession } from "../api/client";
+import { api } from "../api/client";
+import { useApp } from "../context/AppContext";
 import StatCard from "../components/StatCard";
-import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
-import Badge from "../components/Badge";
-import { formatDate } from "../utils/email";
+import { BatchBadge } from "../components/Badge";
+import { formatDate, plural, PROVIDER_LABEL } from "../utils/format";
 import "./Dashboard.css";
 
+function HowItWorks() {
+  return (
+    <div className="card mp-how">
+      <h2>Send one email to many people, individually</h2>
+      <p className="muted">
+        Write a message once, add your recipients, and MailPilot sends a separate email to each person. Nobody sees anyone else's address.
+      </p>
+      <ol className="mp-how__steps">
+        <li>
+          <span>1</span>
+          <div>
+            <strong>Add recipients</strong>
+            <p>Paste a list, e.g. from a spreadsheet column.</p>
+          </div>
+        </li>
+        <li>
+          <span>2</span>
+          <div>
+            <strong>Write & personalize</strong>
+            <p>
+              Use <code>{"{{first_name|there}}"}</code> to greet each person.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span>3</span>
+          <div>
+            <strong>Preview & send</strong>
+            <p>Check each copy, then track every recipient's result.</p>
+          </div>
+        </li>
+      </ol>
+      <div>
+        <Link to="/compose" className="btn btn--primary btn--lg">
+          Write your first email
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
+  const { user, config, account } = useApp();
   const navigate = useNavigate();
-  const user = getStoredUser();
-  const [stats, setStats] = useState(null);
-  const [recent, setRecent] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [data, setData] = useState({ stats: null, recent: null, error: null });
 
   useEffect(() => {
-    if (!user) {
-      navigate("/", { replace: true });
-      return;
-    }
+    Promise.all([api("/emails/stats"), api("/emails/batches?limit=5")])
+      .then(([stats, list]) => setData({ stats, recent: list.batches, error: null }))
+      .catch((error) => setData({ stats: null, recent: null, error }));
+  }, []);
 
-    const load = async () => {
-      try {
-        const [statsData, historyData] = await Promise.all([
-          authFetch("/dashboard/stats"),
-          authFetch("/emails/history?limit=5"),
-        ]);
-        setStats(statsData.stats);
-        setRecent(historyData.emails || []);
-      } catch (err) {
-        if (err.status === 401) {
-          clearSession();
-          navigate("/", { replace: true });
-          return;
-        }
-        setError(err.message || "Failed to load dashboard.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [user, navigate]);
-
-  const handleLogout = () => {
-    clearSession();
-    navigate("/", { replace: true });
-    window.location.reload();
-  };
-
-  const iconEmail = (
-    <svg viewBox="0 0 24 24" fill="none">
-      <rect
-        x="2"
-        y="4"
-        width="20"
-        height="16"
-        rx="3"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M3 6l9 7 9-7"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-  const iconSeparate = (
-    <svg viewBox="0 0 24 24" fill="none">
-      <path
-        d="M3 12h18"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      <path
-        d="M13 5l7 7-7 7"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="5" cy="6" r="1.6" fill="currentColor" />
-      <circle cx="5" cy="18" r="1.6" fill="currentColor" />
-    </svg>
-  );
-  const iconConsolidated = (
-    <svg viewBox="0 0 24 24" fill="none">
-      <circle cx="5" cy="6" r="1.6" fill="currentColor" />
-      <circle cx="5" cy="12" r="1.6" fill="currentColor" />
-      <circle cx="5" cy="18" r="1.6" fill="currentColor" />
-      <path
-        d="M10 12h11"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-  const iconCheck = (
-    <svg viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M8 12l3 3 5-6"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-  const iconFail = (
-    <svg viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M9 9l6 6M15 9l-6 6"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  const { stats, recent, error } = data;
+  const senderText = config.simulated
+    ? "Demo mode: sending is simulated."
+    : config.emailProvider === "gmail"
+      ? `Sending from your Gmail account ${account?.email || ""}.`
+      : "Sending through the configured SMTP server.";
 
   return (
-    <div className="mp-dash">
-      {/* Welcome section */}
-      <section className="mp-dash__welcome">
-        <div className="mp-dash__profile">
-          {user?.profile_picture ? (
-            <img
-              src={user.profile_picture}
-              alt={user.name}
-              className="mp-dash__avatar"
-            />
-          ) : (
-            <div className="mp-dash__avatar mp-dash__avatar--fallback">
-              {user?.name?.charAt(0) || "U"}
-            </div>
-          )}
-          <div className="mp-dash__meta">
-            <h1>Welcome back, {user?.name?.split(" ")[0] || "there"} 👋</h1>
-            <p>{user?.email}</p>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Hi {user.name?.split(" ")[0] || "there"} 👋</h1>
+          <p>
+            {senderText} Provider: {PROVIDER_LABEL[config.emailProvider]}.
+          </p>
+        </div>
+        <Link to="/compose" className="btn btn--primary">
+          ✉️ Compose email
+        </Link>
+      </div>
+
+      {error && (
+        <div className="alert alert--bad" role="alert">
+          Couldn't load your dashboard: {error.message}
+        </div>
+      )}
+
+      {!stats && !error ? (
+        <div className="stats">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 92 }} />
+          ))}
+        </div>
+      ) : stats ? (
+        <div className="stats">
+          <StatCard label={config.simulated ? "Simulated deliveries" : "Accepted by provider"} value={stats.accepted} tone="ok" />
+          <StatCard label="Failed or not sent" value={stats.failed} tone={stats.failed ? "bad" : undefined} hint={stats.unknown ? `${stats.unknown} unknown` : null} />
+          <StatCard label="Emails composed" value={stats.batches} hint={`${stats.emails} individual messages`} />
+          <StatCard label="Used in last 24 h" value={`${stats.last24h}/${stats.dailyLimit}`} hint={stats.inProgress ? `${stats.inProgress} sending now` : "recipients"} />
+        </div>
+      ) : null}
+
+      {recent && recent.length === 0 && <HowItWorks />}
+
+      {recent && recent.length > 0 && (
+        <div className="card card--flush">
+          <div className="card__head mp-dash__head">
+            <h2>Recent emails</h2>
+            <Link to="/history">View all →</Link>
           </div>
-          <button
-            type="button"
-            className="mp-dash__logout"
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="mp-dash__stats">
-        {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} variant="card" height={110} />
-          ))
-        ) : error ? (
-          <div className="mp-dash__error">{error}</div>
-        ) : (
-          <>
-            <StatCard
-              label="Total Emails Sent"
-              value={stats?.total ?? 0}
-              icon={iconEmail}
-              tone="sky"
-            />
-            <StatCard
-              label="Separate Emails"
-              value={stats?.separate ?? 0}
-              icon={iconSeparate}
-              tone="violet"
-            />
-            <StatCard
-              label="Consolidated Emails"
-              value={stats?.consolidated ?? 0}
-              icon={iconConsolidated}
-              tone="beacon"
-            />
-            <StatCard
-              label="Successful"
-              value={stats?.success ?? 0}
-              icon={iconCheck}
-              tone="success"
-            />
-            <StatCard
-              label="Failed"
-              value={stats?.failed ?? 0}
-              icon={iconFail}
-              tone="danger"
-            />
-          </>
-        )}
-      </section>
-
-      {/* Recent history */}
-      <section className="mp-dash__section">
-        <div className="mp-dash__section-head">
-          <h2>Recent Email History</h2>
-          <Link to="/history" className="mp-dash__viewall">
-            View all →
-          </Link>
-        </div>
-
-        {loading ? (
-          <Skeleton variant="table" rows={4} />
-        ) : error ? (
-          <div className="mp-dash__error">{error}</div>
-        ) : recent.length === 0 ? (
-          <EmptyState
-            icon="📭"
-            title="No emails sent yet"
-            message="Your sent emails will appear here."
-            action={
-              <Link to="/send/separate" className="mp-dash__cta">
-                Send your first email
-              </Link>
-            }
-          />
-        ) : (
-          <div className="mp-table-wrap">
-            <table className="mp-table">
+          <div className="table-wrap">
+            <table className="table table--stack">
               <thead>
                 <tr>
                   <th>Subject</th>
-                  <th>Mode</th>
                   <th>Recipients</th>
+                  <th>Result</th>
                   <th>Status</th>
-                  <th>Sent Date</th>
-                  <th>Action</th>
+                  <th>Created</th>
                 </tr>
               </thead>
               <tbody>
-                {recent.map((em) => (
-                  <tr key={em.id}>
-                    <td className="mp-table__subject">{em.subject}</td>
-                    <td>
-                      <Badge
-                        tone={
-                          em.sending_mode === "individual" ? "info" : "muted"
-                        }
-                      >
-                        {em.sending_mode === "individual"
-                          ? "Separate"
-                          : "Consolidated"}
-                      </Badge>
+                {recent.map((b) => (
+                  <tr key={b.id} className="is-link" onClick={() => navigate(`/batches/${b.id}`)}>
+                    <td className="td-main">
+                      <Link to={`/batches/${b.id}`} className="truncate" style={{ display: "block" }} onClick={(e) => e.stopPropagation()}>
+                        {b.subject}
+                      </Link>
                     </td>
-                    <td>{em.to_recipients?.length ?? 0}</td>
-                    <td>
-                      <Badge
-                        tone={
-                          em.status === "sent"
-                            ? "success"
-                            : em.status === "failed"
-                            ? "danger"
-                            : "pending"
-                        }
-                      >
-                        {em.status === "sent"
-                          ? "Sent"
-                          : em.status === "failed"
-                          ? "Failed"
-                          : "Pending"}
-                      </Badge>
+                    <td data-label="Recipients">{b.total}</td>
+                    <td data-label="Result">
+                      <span className="t-ok">{b.counts.accepted} ok</span>
+                      {b.counts.failed + b.counts.skipped + b.counts.unknown > 0 && (
+                        <span className="t-bad"> · {plural(b.counts.failed + b.counts.skipped + b.counts.unknown, "issue")}</span>
+                      )}
                     </td>
-                    <td>{formatDate(em.sent_at || em.created_at)}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="mp-dash__view"
-                        onClick={() =>
-                          navigate("/history", { state: { openId: em.id } })
-                        }
-                      >
-                        View
-                      </button>
+                    <td data-label="Status">
+                      <BatchBadge status={b.status} />
+                    </td>
+                    <td data-label="Created" className="faint">
+                      {formatDate(b.createdAt)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
-
-      {/* Quick actions */}
-      <section className="mp-dash__section">
-        <h2>Quick Actions</h2>
-        <div className="mp-dash__actions">
-          <Link
-            to="/send/separate"
-            className="mp-dash__actioncard mp-dash__actioncard--primary"
-          >
-            <span className="mp-dash__actionicon" aria-hidden="true">
-              {iconSeparate}
-            </span>
-            <span className="mp-dash__actionbody">
-              <span className="mp-dash__actiontitle">Send Separate Emails</span>
-              <span className="mp-dash__actiondesc">
-                Send an individual email to every recipient.
-              </span>
-            </span>
-          </Link>
-
-          <Link
-            to="/send/consolidated"
-            className="mp-dash__actioncard mp-dash__actioncard--primary"
-          >
-            <span className="mp-dash__actionicon" aria-hidden="true">
-              {iconConsolidated}
-            </span>
-            <span className="mp-dash__actionbody">
-              <span className="mp-dash__actiontitle">
-                Send Consolidated Email
-              </span>
-              <span className="mp-dash__actiondesc">
-                Send one email with multiple recipients.
-              </span>
-            </span>
-          </Link>
         </div>
-      </section>
+      )}
+
+      {!recent && !error && <div className="skeleton" style={{ height: 240 }} />}
+      {error && <EmptyState icon="⚠️" title="Nothing to show yet" message="Reload the page to try again." />}
     </div>
   );
 }

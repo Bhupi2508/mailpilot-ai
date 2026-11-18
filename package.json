@@ -1,0 +1,19 @@
+{
+  "name": "mailpilot-ai",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Send one personalized email to many recipients, each delivered as a separate private message.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "setup": "npm ci --prefix backend-node && npm ci --prefix web-ui",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --prefix web-ui",
+    "start": "npm start --prefix backend-node",
+    "test": "npm test --prefix backend-node && npm test --prefix web-ui",
+    "lint": "npm run lint --prefix web-ui",
+    "check:provider": "npm run check:provider --prefix backend-node"
+  }
+}

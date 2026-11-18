@@ -1,58 +1,29 @@
 /**
- * Application logger.
+ * Application logger (console, structured lines).
  *
- * Uses winston. In development, logs are written to the console with
- * colorization. In production, they are additionally written to a file.
+ * Never log passwords, tokens, session ids, message bodies or full email
+ * addresses: use maskEmail() for addresses.
  */
-const path = require("path");
-const fs = require("fs");
 const winston = require("winston");
-const config = require("../config");
-
-const logDir = path.join(__dirname, "../../logs");
-if (config.env === "production") {
-  fs.mkdirSync(logDir, { recursive: true });
-}
-
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-  winston.format.errors({ stack: true }),
-  winston.format.printf(
-    ({ timestamp, level, message, stack }) =>
-      `${timestamp} [${level.toUpperCase()}] ${stack || message}`
-  )
-);
-
-const transports = [
-  new winston.transports.Console({
-    format:
-      config.env === "development"
-        ? winston.format.combine(winston.format.colorize(), logFormat)
-        : logFormat,
-  }),
-];
-
-if (config.env === "production") {
-  transports.push(
-    new winston.transports.File({
-      filename: path.join(logDir, "app.log"),
-      format: logFormat,
-      maxsize: 5 * 1024 * 1024,
-      maxFiles: 5,
-    }),
-    new winston.transports.File({
-      filename: path.join(logDir, "error.log"),
-      level: "error",
-      format: logFormat,
-      maxsize: 5 * 1024 * 1024,
-      maxFiles: 5,
-    })
-  );
-}
 
 const logger = winston.createLogger({
-  level: config.env === "production" ? "info" : "debug",
-  transports,
+  level: process.env.LOG_LEVEL || (process.env.NODE_ENV === "test" ? "error" : "info"),
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      const extra = Object.keys(meta).length ? " " + JSON.stringify(meta) : "";
+      return `${timestamp} ${level.toUpperCase()} ${message}${extra}`;
+    })
+  ),
+  transports: [new winston.transports.Console()],
 });
 
-module.exports = logger;
+/** "jane.doe@example.com" -> "j***@example.com" */
+function maskEmail(email) {
+  const s = String(email || "");
+  const at = s.lastIndexOf("@");
+  if (at < 1) return "***";
+  return `${s[0]}***${s.slice(at)}`;
+}
+
+module.exports = { logger, maskEmail };

@@ -1,124 +1,122 @@
-import { useState } from "react";
-import { isValidEmail } from "../utils/email";
+import { useId, useState } from "react";
+import { addRecipients } from "../utils/recipients";
 import "./EmailChipsInput.css";
 
 /**
- * Multi-email input with chips/tags.
+ * Multi-address input with chips.
+ * - Type and press Enter, comma or semicolon, or paste a whole list
+ *   (one per line, comma separated, or "Name <email>" entries).
+ * - Invalid entries stay as red chips; click one to edit it.
+ * - Duplicates are skipped with a short notice.
  *
- * Supports:
- *  - typing then Enter/comma to add
- *  - pasting comma/newline separated lists
- *  - removing chips
- *  - inline validation (invalid + duplicates)
- *
- * Props:
- *  - value: string[] (emails)
- *  - onChange(emails)
- *  - error: string|string[]
- *  - label, placeholder, required, max
+ * value: [{ raw, name, email, error? }]
  */
-function EmailChipsInput({
-  value = [],
-  onChange,
-  error,
-  label,
-  placeholder = "name@example.com",
-  required = false,
-  max,
-  hint,
-  helperText,
-}) {
+function EmailChipsInput({ label, value, onChange, max, placeholder, hint, error, required, autoFocus }) {
+  const id = useId();
   const [draft, setDraft] = useState("");
-  const [touched, setTouched] = useState(false);
+  const [notice, setNotice] = useState("");
 
-  const addFromText = (text) => {
-    const parts = text
-      .split(/[\s,;|]+/)
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    if (!parts.length) return;
-
-    const next = [...value];
-    for (const part of parts) {
-      if (isValidEmail(part) && !next.includes(part)) next.push(part);
-    }
-    onChange(next);
+  const commit = (text) => {
+    if (!text.trim()) return;
+    const { list, duplicates } = addRecipients(value, text);
+    onChange(list);
     setDraft("");
+    setNotice(duplicates ? `Skipped ${duplicates} duplicate${duplicates > 1 ? "s" : ""}.` : "");
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === ",") {
+  const onKeyDown = (e) => {
+    if (["Enter", ",", ";"].includes(e.key) || (e.key === "Tab" && draft.trim())) {
       e.preventDefault();
-      addFromText(draft);
+      commit(draft);
     } else if (e.key === "Backspace" && !draft && value.length) {
       onChange(value.slice(0, -1));
     }
   };
 
-  const handlePaste = (e) => {
-    e.preventDefault();
+  const onPaste = (e) => {
     const text = e.clipboardData.getData("text");
-    addFromText(text);
+    if (/[,;\n\t]/.test(text)) {
+      e.preventDefault();
+      commit(draft + text);
+    }
   };
 
-  const remove = (email) => onChange(value.filter((v) => v !== email));
+  const edit = (index) => {
+    setDraft(value[index].raw);
+    onChange(value.filter((_, i) => i !== index));
+  };
 
-  const showError = touched && error;
-  const maxReached = max && value.length >= max;
+  const invalid = value.filter((r) => r.error).length;
+  const valid = value.length - invalid;
+  const over = max && valid > max;
 
   return (
-    <div className="mp-chips">
-      {label && (
-        <label className="mp-chips__label">
+    <div className="field mp-chips">
+      <div className="mp-chips__top">
+        <label className="field__label" htmlFor={id}>
           {label}
-          {required && <span className="mp-chips__req">*</span>}
+          {required && <span aria-hidden="true" className="mp-chips__req">*</span>}
         </label>
-      )}
-
+        {value.length > 0 && (
+          <span className="faint">
+            {valid} {valid === 1 ? "address" : "addresses"}
+            {max ? ` / ${max} max` : ""}
+            {" · "}
+            <button type="button" className="mp-chips__clear" onClick={() => onChange([])}>
+              Clear
+            </button>
+          </span>
+        )}
+      </div>
       <div
-        className={`mp-chips__box${showError ? " mp-chips__box--error" : ""}`}
+        className={`mp-chips__box${error || invalid || over ? " is-error" : ""}`}
+        onClick={(e) => e.currentTarget.querySelector("input")?.focus()}
       >
-        {value.map((email) => (
-          <span key={email} className="mp-chip">
-            {email}
-            <button
-              type="button"
-              className="mp-chip__remove"
-              onClick={() => remove(email)}
-              aria-label={`Remove ${email}`}
-            >
+        {value.map((r, i) => (
+          <span key={`${r.email}-${i}`} className={`mp-chip${r.error ? " is-invalid" : ""}`} title={r.error || r.email}>
+            {r.error ? (
+              <button type="button" className="mp-chip__text" onClick={() => edit(i)} aria-label={`Edit invalid address ${r.raw}`}>
+                {r.raw}
+              </button>
+            ) : (
+              <span className="mp-chip__text">
+                {r.name ? (
+                  <>
+                    <strong>{r.name}</strong> <span className="mp-chip__email">{r.email}</span>
+                  </>
+                ) : (
+                  r.email
+                )}
+              </span>
+            )}
+            <button type="button" className="mp-chip__x" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={`Remove ${r.raw}`}>
               ×
             </button>
           </span>
         ))}
         <input
-          type="text"
+          id={id}
           className="mp-chips__input"
           value={draft}
           placeholder={value.length ? "" : placeholder}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => {
-            setTouched(true);
-            if (draft) addFromText(draft);
-          }}
-          onPaste={handlePaste}
-          disabled={maxReached}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          onBlur={() => commit(draft)}
+          autoComplete="off"
+          spellCheck={false}
+          autoFocus={autoFocus}
         />
       </div>
-
-      {helperText && !showError && (
-        <span className="mp-chips__hint">{helperText}</span>
+      {invalid > 0 && (
+        <span className="field__error">
+          {invalid} invalid {invalid === 1 ? "address" : "addresses"}: click a red chip to fix it, or × to remove it.
+        </span>
       )}
-      {hint && !error && <span className="mp-chips__hint">{hint}</span>}
-
-      {Array.isArray(error)
-        ? error.map((e, i) => (
-            <span key={i} className="mp-chips__error">
-              {e}
-            </span>
-          ))
-        : error && <span className="mp-chips__error">{error}</span>}
+      {over && <span className="field__error">Too many addresses: the limit is {max}.</span>}
+      {error && <span className="field__error">{error}</span>}
+      {notice && <span className="field__hint">{notice}</span>}
+      {hint && <span className="field__hint">{hint}</span>}
     </div>
   );
 }

@@ -1,115 +1,100 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { formatBytes } from "../utils/format";
 import "./AttachmentUploader.css";
 
-const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".csv", ".txt"];
-const ALLOWED_MIME = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/csv",
-  "text/plain",
-];
-export const MAX_ATTACHMENTS = 5;
-export const MAX_ATTACHMENT_SIZE_MB = 10;
-const MAX_SIZE_BYTES = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
-
 /**
- * Attachment uploader supporting PDF/DOC/DOCX/CSV/TXT, max 5 files.
- * `files` is an array of File objects; errors are surfaced via onError.
+ * Attachment picker (click or drag & drop). Limits come from the server's
+ * /api/config; the server re-checks type, content and size on upload.
  */
-function AttachmentUploader({ files = [], setFiles, onError }) {
+function AttachmentUploader({ files, setFiles, limits }) {
   const inputRef = useRef(null);
+  const [errors, setErrors] = useState([]);
+  const [dragging, setDragging] = useState(false);
+  const { maxFiles, maxFileMb, maxTotalMb, allowedExtensions } = limits;
 
-  const validateFile = (file) => {
-    const name = file.name.toLowerCase();
-    const hasExtension = ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
-    const mimeOk = ALLOWED_MIME.includes((file.type || "").toLowerCase());
-    if (!hasExtension) {
-      return `"${file.name}" is not allowed. Use PDF, DOC, DOCX, CSV, or TXT.`;
-    }
-    if (file.size > MAX_SIZE_BYTES) {
-      return `"${file.name}" exceeds the ${MAX_ATTACHMENT_SIZE_MB}MB limit.`;
-    }
-    void mimeOk;
-    return null;
-  };
-
-  const handleChange = (e) => {
-    const selected = Array.from(e.target.files || []);
+  const add = (incoming) => {
     const next = [...files];
-    const errors = [];
-
-    for (const file of selected) {
-      if (next.length >= MAX_ATTACHMENTS) {
-        errors.push(`Maximum ${MAX_ATTACHMENTS} attachments allowed.`);
+    const errs = [];
+    for (const file of incoming) {
+      const ext = file.name.includes(".") ? `.${file.name.split(".").pop().toLowerCase()}` : "";
+      if (next.length >= maxFiles) {
+        errs.push(`You can attach at most ${maxFiles} files.`);
         break;
       }
-      const err = validateFile(file);
-      if (err) {
-        errors.push(err);
-        continue;
-      }
-      if (next.find((f) => f.name === file.name)) {
-        errors.push(`"${file.name}" is already attached.`);
-        continue;
-      }
-      next.push(file);
+      if (!allowedExtensions.includes(ext)) errs.push(`"${file.name}": this file type isn't allowed.`);
+      else if (file.size === 0) errs.push(`"${file.name}" is empty.`);
+      else if (file.size > maxFileMb * 1024 * 1024) errs.push(`"${file.name}" is larger than ${maxFileMb} MB.`);
+      else if (next.some((f) => f.name.toLowerCase() === file.name.toLowerCase())) errs.push(`"${file.name}" is already attached.`);
+      else next.push(file);
     }
-
-    if (errors.length) onError?.(errors);
+    const total = next.reduce((a, f) => a + f.size, 0);
+    if (total > maxTotalMb * 1024 * 1024) {
+      errs.push(`Attachments can total at most ${maxTotalMb} MB.`);
+      return setErrors(errs);
+    }
+    setErrors(errs);
     setFiles(next);
-    if (inputRef.current) inputRef.current.value = "";
   };
 
-  const remove = (name) => setFiles(files.filter((f) => f.name !== name));
+  const total = files.reduce((a, f) => a + f.size, 0);
+  if (maxFiles === 0) return null;
 
   return (
-    <div className="mp-upload">
-      <div className="mp-upload__box" onClick={() => inputRef.current?.click()}>
+    <div className="field">
+      <span className="field__label">Attachments</span>
+      <div
+        className={`mp-upload${dragging ? " is-dragging" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          add(Array.from(e.dataTransfer.files || []));
+        }}
+      >
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept={ALLOWED_EXTENSIONS.join(",")}
-          onChange={handleChange}
           hidden
+          accept={allowedExtensions.join(",")}
+          onChange={(e) => {
+            add(Array.from(e.target.files || []));
+            e.target.value = "";
+          }}
         />
-        <span className="mp-upload__icon" aria-hidden="true">
-          📎
-        </span>
-        <span className="mp-upload__text">
-          Click to attach files (PDF, DOC, DOCX, CSV, TXT)
-        </span>
-        <span className="mp-upload__meta">
-          Max {MAX_ATTACHMENTS} files · {MAX_ATTACHMENT_SIZE_MB}MB each
+        <button type="button" className="btn btn--sm" onClick={() => inputRef.current?.click()} disabled={files.length >= maxFiles}>
+          📎 Add files
+        </button>
+        <span className="faint">
+          or drag them here · up to {maxFiles} files, {maxFileMb} MB each, {maxTotalMb} MB total
         </span>
       </div>
-
+      <span className="field__hint">
+        Allowed: {allowedExtensions.map((e) => e.slice(1).toUpperCase()).join(", ")}. Every recipient gets the same attachments.
+      </span>
       {files.length > 0 && (
         <ul className="mp-upload__list">
           {files.map((f) => (
-            <li key={f.name} className="mp-upload__item">
-              <span className="mp-upload__file">
-                <span className="mp-upload__fileicon" aria-hidden="true">
-                  📄
-                </span>
-                <span className="mp-upload__filename">{f.name}</span>
-                <span className="mp-upload__size">
-                  {(f.size / 1024).toFixed(1)} KB
-                </span>
-              </span>
-              <button
-                type="button"
-                className="mp-upload__remove"
-                onClick={() => remove(f.name)}
-                aria-label={`Remove ${f.name}`}
-              >
+            <li key={f.name}>
+              <span className="mp-upload__name">📄 {f.name}</span>
+              <span className="faint">{formatBytes(f.size)}</span>
+              <button type="button" className="icon-btn" onClick={() => setFiles(files.filter((x) => x !== f))} aria-label={`Remove ${f.name}`}>
                 ×
               </button>
             </li>
           ))}
+          <li className="mp-upload__total faint">Total {formatBytes(total)}</li>
         </ul>
       )}
+      {errors.map((e) => (
+        <span key={e} className="field__error">
+          {e}
+        </span>
+      ))}
     </div>
   );
 }

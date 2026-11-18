@@ -1,86 +1,106 @@
 /**
- * Express application setup.
- *
- * Configures global middleware and wires up the route modules.
- * Only boilerplate is included here — no business logic.
+ * Express app factory. All dependencies are injected so tests can build an app
+ * with an in-memory database and a mock provider.
  */
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
-const cors = require("cors");
 const helmet = require("helmet");
+const cors = require("cors");
 const compression = require("compression");
-const morgan = require("morgan");
-const swaggerUi = require("swagger-ui-express");
+const cookieParser = require("cookie-parser");
 
-const config = require("./config");
-const routes = require("./routes");
-const logger = require("./utils/logger");
-const sanitizeBody = require("./middleware/sanitize");
-const { apiLimiter } = require("./middleware/rateLimiter");
-const swaggerSpec = require("./config/swagger");
-const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
+const { ALLOWED_EXTENSIONS } = require("./services/attachments");
+const { TOKENS } = require("./services/messageBuilder");
+const mw = require("./middleware");
+const { authRoutes } = require("./routes/auth");
+const { emailRoutes } = require("./routes/emails");
 
-const app = express();
+function createApp({ config, db, provider, authService, otpService, batchService, googleOAuth }) {
+  const app = express();
+  const limiters = mw.rateLimiters(config);
 
-// Trust proxy so req.ip is correct behind a reverse proxy (needed for rate limiting).
-app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+  if (config.trustProxy) app.set("trust proxy", config.trustProxy);
 
-// --- Security middleware ---
-app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          // Email previews may reference remote images.
+          "img-src": ["'self'", "data:", "https:"],
+          "frame-src": ["'self'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    })
+  );
+  app.use(
+    cors({
+      origin: config.corsOrigins,
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Idempotency-Key", mw.CLIENT_HEADER],
+      exposedHeaders: ["Idempotent-Replayed"],
+    })
+  );
+  app.use(compression());
+  app.use(mw.requestLogger);
 
-// --- CORS ---
-app.use(
-  cors({
-    origin: config.corsOrigin === "*" ? "*" : config.corsOrigin.split(","),
-    credentials: true,
-  })
-);
+  // --- Health ----------------------------------------------------------------
+  const health = async (req, res) => {
+    try {
+      await db.get("SELECT 1 AS ok");
+      res.json({ status: "ok", database: db.dialect, emailProvider: provider.name });
+    } catch {
+      res.status(503).json({ status: "error", database: "unreachable" });
+    }
+  };
+  app.get("/health", health);
 
-// --- Request logging ---
-app.use(
-  morgan(config.logFormat, {
-    stream: { write: (msg) => logger.http(msg.trim()) },
-  })
-);
+  // --- API -------------------------------------------------------------------
+  const api = express.Router();
+  api.use(limiters.api);
+  api.use(express.json({ limit: `${config.limits.maxBodyKb + 64}kb` }));
+  api.use(cookieParser());
+  api.use(mw.csrfGuard);
+  api.use(mw.loadSession(authService));
 
-// --- Body parsing ---
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-
-// --- Input sanitization ---
-app.use("/api", sanitizeBody);
-
-// --- Compression ---
-app.use(compression());
-
-// --- Health check ---
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    message: "MailPilot AI API is running",
-    environment: config.env,
+  api.get("/health", health);
+  api.get("/config", (req, res) => {
+    res.json({
+      emailProvider: provider.name,
+      simulated: provider.simulated,
+      auth: {
+        password: config.authMethods.password,
+        registration: config.authMethods.password && config.auth.allowRegistration,
+        demo: config.authMethods.demo,
+        google: config.authMethods.google,
+      },
+      limits: config.limits,
+      uploads: {
+        maxFiles: config.uploads.maxFiles,
+        maxFileMb: config.uploads.maxFileMb,
+        maxTotalMb: config.uploads.maxTotalMb,
+        allowedExtensions: ALLOWED_EXTENSIONS,
+      },
+      personalizationTokens: TOKENS,
+    });
   });
-});
+  api.use("/auth", authRoutes({ config, authService, otpService, googleOAuth, limiters }));
+  api.use("/emails", emailRoutes({ config, batchService, limiters }));
+  api.use(mw.notFound);
+  app.use("/api", api);
 
-// --- API docs (Swagger) ---
-app.use(
-  `${config.apiPrefix}/docs`,
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customCssUrl:
-      "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css",
-  })
-);
+  // --- Built web UI (optional, for single-service deployments) ---------------
+  const indexHtml = path.join(config.webDistDir, "index.html");
+  if (config.serveWebUi && fs.existsSync(indexHtml)) {
+    app.use(express.static(config.webDistDir, { index: false, maxAge: "1h" }));
+    app.get("/{*splat}", (req, res) => res.sendFile(indexHtml));
+  }
 
-// --- Apply general rate limit to API routes ---
-app.use(config.apiPrefix, apiLimiter);
+  app.use(mw.notFound);
+  app.use(mw.errorHandler(config));
+  return app;
+}
 
-// --- API routes ---
-app.use(config.apiPrefix, routes);
-
-// --- 404 handler ---
-app.use(notFoundHandler);
-
-// --- Centralized error handler ---
-app.use(errorHandler);
-
-module.exports = app;
+module.exports = { createApp };

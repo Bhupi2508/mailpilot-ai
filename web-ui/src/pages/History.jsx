@@ -1,296 +1,181 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { authFetch, clearSession } from "../api/client";
-import Badge from "../components/Badge";
-import Skeleton from "../components/Skeleton";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../api/client";
+import { BatchBadge, Badge } from "../components/Badge";
 import EmptyState from "../components/EmptyState";
-import Modal from "../components/Modal";
-import { formatDate } from "../utils/email";
-import "./History.css";
+import { formatDate } from "../utils/format";
 
-const ITEMS_PER_PAGE = 10;
+const PAGE_SIZE = 15;
 
+/** All composed emails (batches), searchable by subject and filterable by status. */
 function History() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [emails, setEmails] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
-  const [searchInput, setSearchInput] = useState("");
-  const [status, setStatus] = useState("all");
-  const [mode, setMode] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const search = params.get("q") || "";
+  const status = params.get("status") || "";
+  const [draft, setDraft] = useState(search);
+  const [result, setResult] = useState({ key: null, data: null, error: null });
+  const key = `${page}|${search}|${status}`;
 
-  const load = async (page = 1) => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(ITEMS_PER_PAGE),
-      });
-      if (searchInput.trim()) params.set("search", searchInput.trim());
-      if (status !== "all") params.set("status", status);
-      if (mode !== "all")
-        params.set("mode", mode === "separate" ? "individual" : "shared");
+  useEffect(() => {
+    const q = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+    if (search) q.set("search", search);
+    if (status) q.set("status", status);
+    let cancelled = false;
+    api(`/emails/batches?${q}`)
+      .then((data) => !cancelled && setResult({ key, data, error: null }))
+      .catch((error) => !cancelled && setResult({ key, data: null, error }));
+    return () => {
+      cancelled = true;
+    };
+  }, [key, page, search, status]);
 
-      const data = await authFetch(`/emails/history?${params.toString()}`);
-      setEmails(data.emails || []);
-      setPagination(data.pagination);
-    } catch (err) {
-      if (err.status === 401) {
-        clearSession();
-        navigate("/", { replace: true });
-        return;
-      }
-      setError(err.message || "Failed to load history.");
-      setEmails([]);
-    } finally {
-      setLoading(false);
-    }
+  const update = (patch) => {
+    const next = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
+    if (!("page" in patch)) next.delete("page");
+    setParams(next);
   };
 
-  // Initial load + reload on filter changes.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, mode]);
-
-  // Open a detail modal when arriving from the dashboard "View" action.
-  useEffect(() => {
-    if (location.state?.openId) {
-      const found = emails.find((e) => e.id === location.state.openId);
-      if (found) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelected(found);
-      }
-      window.history.replaceState({}, "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    load(1);
-  };
-
-  const goToPage = (page) => load(page);
-
-  const statusTone = (s) =>
-    s === "sent" ? "success" : s === "failed" ? "danger" : "pending";
-  const statusLabel = (s) =>
-    s === "sent" ? "Sent" : s === "failed" ? "Failed" : "Pending";
+  const loading = result.key !== key;
+  const { data, error } = result;
+  const filtered = search || status;
 
   return (
-    <div className="mp-hist">
-      <div className="mp-hist__head">
-        <h1>Email History</h1>
-        <p>Search and filter your sent emails.</p>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>History</h1>
+          <p>Every email you've composed, with per-recipient results.</p>
+        </div>
+        <Link to="/compose" className="btn btn--primary">
+          Compose
+        </Link>
       </div>
 
-      {/* Controls */}
-      <div className="mp-hist__controls">
-        <form className="mp-hist__search" onSubmit={handleSearch}>
+      <div className="row">
+        <form
+          className="row"
+          style={{ flex: 1, minWidth: 240 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            update({ q: draft.trim() });
+          }}
+          role="search"
+        >
           <input
+            className="input"
+            style={{ flex: 1 }}
             type="search"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             placeholder="Search by subject…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Search by subject"
           />
-          <button type="submit">Search</button>
+          <button type="submit" className="btn">
+            Search
+          </button>
         </form>
-
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="mp-hist__select"
-        >
-          <option value="all">All Status</option>
-          <option value="sent">Success</option>
+        <select className="select" value={status} onChange={(e) => update({ status: e.target.value })} aria-label="Filter by status">
+          <option value="">All statuses</option>
+          <option value="sending">Sending</option>
+          <option value="completed">Completed</option>
+          <option value="partial">Partly failed</option>
           <option value="failed">Failed</option>
-          <option value="pending">Pending</option>
-        </select>
-
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          className="mp-hist__select"
-        >
-          <option value="all">All Modes</option>
-          <option value="separate">Separate</option>
-          <option value="consolidated">Consolidated</option>
         </select>
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <Skeleton variant="table" rows={6} />
-      ) : error ? (
-        <div className="mp-hist__error">{error}</div>
-      ) : emails.length === 0 ? (
-        <EmptyState
-          icon="🔍"
-          title="No emails found"
-          message="Try adjusting your search or filters, or send your first email."
-        />
+      {error ? (
+        <div className="alert alert--bad" role="alert">
+          Couldn't load history: {error.message}
+        </div>
+      ) : loading && !data ? (
+        <div className="skeleton" style={{ height: 320 }} />
+      ) : data.batches.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={filtered ? "🔍" : "📭"}
+            title={filtered ? "No matching emails" : "No emails yet"}
+            message={filtered ? "Try a different search or status." : "Emails you send will appear here with each recipient's result."}
+            action={
+              filtered ? (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setDraft("");
+                    setParams({});
+                  }}
+                >
+                  Clear filters
+                </button>
+              ) : (
+                <Link to="/compose" className="btn btn--primary">
+                  Compose an email
+                </Link>
+              )
+            }
+          />
+        </div>
       ) : (
-        <div className="mp-hist__tablewrap">
-          <table className="mp-hist__table">
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Mode</th>
-                <th>Recipients</th>
-                <th>Status</th>
-                <th>Sent Time</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {emails.map((em) => (
-                <tr key={em.id}>
-                  <td className="mp-hist__subject">{em.subject}</td>
-                  <td>
-                    <Badge
-                      tone={em.sending_mode === "individual" ? "info" : "muted"}
-                    >
-                      {em.sending_mode === "individual"
-                        ? "Separate"
-                        : "Consolidated"}
-                    </Badge>
-                  </td>
-                  <td>{em.to_recipients?.length ?? 0}</td>
-                  <td>
-                    <Badge tone={statusTone(em.status)}>
-                      {statusLabel(em.status)}
-                    </Badge>
-                  </td>
-                  <td>{formatDate(em.sent_at || em.created_at)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="mp-hist__details"
-                      onClick={() => setSelected(em)}
-                    >
-                      View
-                    </button>
-                  </td>
+        <div className="card card--flush" style={{ opacity: loading ? 0.6 : 1 }}>
+          <div className="table-wrap">
+            <table className="table table--stack">
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Recipients</th>
+                  <th>Accepted</th>
+                  <th>Issues</th>
+                  <th>Status</th>
+                  <th>Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {!loading && pagination.totalPages > 1 && (
-        <div className="mp-hist__pagination">
-          <button
-            type="button"
-            disabled={pagination.page <= 1}
-            onClick={() => goToPage(pagination.page - 1)}
-          >
-            Prev
-          </button>
-          <span>
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={pagination.page >= pagination.totalPages}
-            onClick={() => goToPage(pagination.page + 1)}
-          >
-            Next
-          </button>
-        </div>
-      )}
-
-      {/* Detail modal */}
-      <Modal
-        open={!!selected}
-        title="Email Details"
-        onClose={() => setSelected(null)}
-        footer={
-          <button
-            type="button"
-            className="mp-modal__btn mp-modal__btn--primary"
-            onClick={() => setSelected(null)}
-          >
-            Close
-          </button>
-        }
-      >
-        {selected && (
-          <div className="mp-hist__detail">
-            <div className="mp-hist__detailrow">
-              <span>Subject</span>
-              <strong>{selected.subject}</strong>
-            </div>
-            <div className="mp-hist__detailrow">
-              <span>Mode</span>
-              <strong>
-                {selected.sending_mode === "individual"
-                  ? "Separate"
-                  : "Consolidated"}
-              </strong>
-            </div>
-            <div className="mp-hist__detailrow">
-              <span>Status</span>
-              <Badge tone={statusTone(selected.status)}>
-                {statusLabel(selected.status)}
-              </Badge>
-            </div>
-            <div className="mp-hist__detailrow">
-              <span>Sent At</span>
-              <strong>
-                {formatDate(selected.sent_at || selected.created_at)}
-              </strong>
-            </div>
-            <div className="mp-hist__detailrow">
-              <span>To</span>
-              <div className="mp-hist__recipients">
-                {selected.to_recipients?.map((r) => (
-                  <span key={r} className="mp-hist__recipient">
-                    {r}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {selected.cc_recipients?.length > 0 && (
-              <div className="mp-hist__detailrow">
-                <span>CC</span>
-                <div className="mp-hist__recipients">
-                  {selected.cc_recipients.map((r) => (
-                    <span key={r} className="mp-hist__recipient">
-                      {r}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {selected.attachment_count > 0 && (
-              <div className="mp-hist__detailrow">
-                <span>Attachments</span>
-                <strong>{selected.attachment_names?.join(", ")}</strong>
-              </div>
-            )}
-            {selected.error_message && (
-              <div className="mp-hist__detailrow">
-                <span>Error</span>
-                <strong className="mp-hist__error">
-                  {selected.error_message}
-                </strong>
-              </div>
-            )}
+              </thead>
+              <tbody>
+                {data.batches.map((b) => {
+                  const issues = b.counts.failed + b.counts.skipped + b.counts.unknown;
+                  return (
+                    <tr key={b.id} className="is-link" onClick={() => navigate(`/batches/${b.id}`)}>
+                      <td className="td-main">
+                        <Link to={`/batches/${b.id}`} className="truncate" style={{ display: "block" }} onClick={(e) => e.stopPropagation()}>
+                          {b.subject}
+                        </Link>
+                        {b.simulated && <Badge tone="demo">Simulated</Badge>}
+                      </td>
+                      <td data-label="Recipients">{b.total}</td>
+                      <td data-label="Accepted">{b.counts.accepted}</td>
+                      <td data-label="Issues" className={issues ? "t-bad" : "faint"}>
+                        {issues || "—"}
+                      </td>
+                      <td data-label="Status">
+                        <BatchBadge status={b.status} />
+                      </td>
+                      <td data-label="Created" className="faint">
+                        {formatDate(b.createdAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
+
+      {data && data.pagination.totalPages > 1 && (
+        <div className="row" style={{ justifyContent: "center" }}>
+          <button type="button" className="btn btn--sm" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>
+            ‹ Previous
+          </button>
+          <span className="faint">
+            Page {data.pagination.page} of {data.pagination.totalPages}
+          </span>
+          <button type="button" className="btn btn--sm" disabled={page >= data.pagination.totalPages} onClick={() => update({ page: String(page + 1) })}>
+            Next ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }

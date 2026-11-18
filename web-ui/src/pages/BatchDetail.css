@@ -1,0 +1,86 @@
+.mp-batch__title {
+  overflow-wrap: anywhere;
+}
+.mp-batch__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mp-batch__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.mp-batch__counts b {
+  font-size: 16px;
+}
+.mp-batch__counts b:not([class]) {
+  color: var(--ink);
+}
+.mp-batch__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mp-batch__detail {
+  font-size: 13px;
+  max-width: 380px;
+  overflow-wrap: anywhere;
+}
+.mp-batch__message summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.mp-batch__message dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.mp-batch__message dt {
+  color: var(--ink-faint);
+}
+.mp-batch__message dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mp-batch__frame {
+  width: 100%;
+  height: 280px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.mp-batch__text {
+  white-space: pre-wrap;
+  font: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin: 0 0 8px;
+}
+@media (max-width: 720px) {
+  .mp-batch__detail {
+    max-width: none;
+    text-align: right;
+  }
+  .mp-batch__message dl {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .mp-batch__message dd {
+    margin-bottom: 8px;
+  }
+  .mp-batch__toolbar .mp-seg {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}

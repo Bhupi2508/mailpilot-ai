@@ -1,16 +1,10 @@
-import "./StatCard.css";
-
-/** A single statistics card used on the dashboard. */
-function StatCard({ label, value, icon, tone = "sky" }) {
+/** A single number tile on the dashboard. tone: "ok" | "bad" | undefined. */
+function StatCard({ label, value, tone, hint }) {
   return (
-    <div className={`mp-statcard mp-statcard--${tone}`}>
-      <div className="mp-statcard__icon" aria-hidden="true">
-        {icon}
-      </div>
-      <div className="mp-statcard__body">
-        <span className="mp-statcard__value">{value}</span>
-        <span className="mp-statcard__label">{label}</span>
-      </div>
+    <div className="stat">
+      <div className={`stat__value${tone ? ` stat__value--${tone}` : ""}`}>{value}</div>
+      <div className="stat__label">{label}</div>
+      {hint && <div className="faint">{hint}</div>}
     </div>
   );
 }
